@@ -1,3 +1,4 @@
 *.ics
 ics_analysis.ipynb
 .ipynb_checkpoints
+credentials.json
