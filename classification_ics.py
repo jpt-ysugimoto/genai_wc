@@ -8,11 +8,11 @@
 from langchain_community.chat_models import ChatDatabricks
 
 # You can play with max_tokens to define the length of the response
-llm_llama = ChatDatabricks(endpoint="databricks-meta-llama-3-1-70b-instruct", max_tokens = 500)
+llm_llama = ChatDatabricks(
+    endpoint="databricks-meta-llama-3-1-70b-instruct", max_tokens=500
+)
 
 for chunk in llm_llama.stream("Who is Brad Pitt?"):
     print(chunk.content, end="\n", flush=True)
 
 # COMMAND ----------
-
-

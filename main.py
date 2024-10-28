@@ -21,9 +21,9 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from googleapiclient.http import MediaIoBaseDownload
 from googleapiclient.errors import HttpError
-from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_community.chat_models import ChatDatabricks
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -350,7 +350,7 @@ class MeetingPreparationAssistant:
             ]
         )
         parser = JsonOutputParser(pydantic_object=IsMeetingInvite)
-        llm = ChatOpenAI(model="gpt-4o-mini")
+        llm = ChatDatabricks(endpoint="databricks-meta-llama-3-1-70b-instruct")
         chain = prompt | llm | parser
         result = chain.invoke(
             {
@@ -660,7 +660,9 @@ class MeetingPreparationAssistant:
                 ("human", "Please summarize the following text: {content}"),
             ]
         )
-        llm = ChatOpenAI(model="gpt-4o-mini", max_tokens=150)
+        llm = ChatDatabricks(
+            endpoint="databricks-meta-llama-3-1-70b-instruct", max_tokens=200
+        )
         chain = prompt | llm
         summary = chain.invoke({"content": content}).content
         logger.info("Content summarized using LLM")
@@ -717,7 +719,9 @@ class MeetingPreparationAssistant:
         )
         parser = JsonOutputParser(pydantic_object=TaskList)
 
-        model = ChatOpenAI(model="gpt-4o-mini", temperature=0.0)
+        model = ChatDatabricks(
+            endpoint="databricks-meta-llama-3-1-70b-instruct", temperature=0.0
+        )
         chain = prompt | model | parser
         result = chain.invoke(
             {
