@@ -11,7 +11,17 @@ google-api-python-client = "==2.149.0"
 google-auth-httplib2 = "==0.2.0"
 google-auth-oauthlib = "==1.2.1"
 pypdf = "==5.1.0"
-pydantic = "==2.9.2"
+pydantic = "==2.8.2"
+databricks-sdk = "==0.29.0"
+langchain-core = "==0.2.24"
+databricks-vectorsearch = "==0.40"
+langchain-community = "==0.2.10"
+typing-extensions = "==4.12.2"
+youtube-search = "*"
+wikipedia = "*"
+grandalf = "*"
+mlflow = "==2.14.3"
+python-dotenv = "==1.0.1"
 
 [dev-packages]
 

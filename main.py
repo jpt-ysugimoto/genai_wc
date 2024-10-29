@@ -9,7 +9,6 @@ from icalendar import Calendar
 from dotenv import load_dotenv
 from pypdf import PdfReader
 from pydantic import BaseModel, Field
-
 from email import message_from_bytes
 from email.header import decode_header
 from email.mime.multipart import MIMEMultipart
@@ -17,19 +16,21 @@ from email.mime.text import MIMEText
 
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from google.auth.transport.requests import Request
 from googleapiclient.http import MediaIoBaseDownload
 from googleapiclient.errors import HttpError
-from langchain_openai import ChatOpenAI
+from langchain_community.chat_models import ChatDatabricks
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.prompts import ChatPromptTemplate
+
+# Define the name of the LLM
+MODEL_NAME = "databricks-dbrx-instruct"
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+# Model for determining if an email is a meeting invite
 class IsMeetingInvite(BaseModel):
     is_meeting_invite: bool = Field(
         default=False,
@@ -37,6 +38,7 @@ class IsMeetingInvite(BaseModel):
     )
 
 
+# Model representing event information extracted from an email
 class EventInfo(BaseModel):
     event_title: str = Field(description="The title of the event.")
     description: str = Field(description="A detailed description of the event.")
@@ -56,12 +58,14 @@ class EventInfo(BaseModel):
     )
 
 
+# Model for holding multiple EventInfo instances
 class EventsInfo(BaseModel):
     events_info: list[EventInfo] = Field(
         description="A list containing information about multiple events."
     )
 
 
+# Model representing a task required to prepare for an event
 class Task(BaseModel):
     task: str = Field(
         description="Represents the task required to prepare for a scheduled event."
@@ -72,6 +76,7 @@ class Task(BaseModel):
     )
 
 
+# Model containing a list of tasks to prepare for an event
 class TaskList(BaseModel):
     title: str = Field(description="The title of the event.")
     tasks: list[Task] = Field(
@@ -79,6 +84,7 @@ class TaskList(BaseModel):
     )
 
 
+# Custom exception raised when no new meeting invitations are found
 class MessagesNotFound(Exception):
     """Exception raised when no new meeting invitations are found."""
 
@@ -92,8 +98,6 @@ class MeetingPreparationAssistant:
 
         Loads environment variables, sets up OAuth 2.0 credentials, and initializes services for Calendar, Gmail, Drive, Docs, Sheets, and Slides APIs.
         """
-        load_dotenv()
-        os.getenv("OPENAI_API_KEY")
         SCOPES = [
             "https://www.googleapis.com/auth/calendar.readonly",
             "https://www.googleapis.com/auth/drive.readonly",
@@ -108,19 +112,10 @@ class MeetingPreparationAssistant:
         if os.path.exists("token.json"):
             creds = Credentials.from_authorized_user_file("token.json", SCOPES)
             logger.info("Loaded credentials from token.json")
-        if not creds or not creds.valid:
-            if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-                logger.info("Refreshed expired credentials")
-            else:
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    "credentials.json", SCOPES
-                )
-                creds = flow.run_local_server(port=0)
-                logger.info("Obtained new credentials via OAuth flow")
-            with open("token.json", "w") as token:
-                token.write(creds.to_json())
-                logger.info("Saved credentials to token.json")
+        else:
+            logger.error("token.json not found")
+            raise Exception("token.json not found")
+
         try:
             self.calendar_service = build(
                 "calendar", "v3", credentials=creds, cache_discovery=False
@@ -141,6 +136,7 @@ class MeetingPreparationAssistant:
                 "slides", "v1", credentials=creds, cache_discovery=False
             )
             logger.info("Initialized Google API services")
+
             # Get or create the 'Processed' label and store its ID
             self.processed_label_id = self.get_or_create_label("Processed")
         except HttpError as error:
@@ -165,12 +161,13 @@ class MeetingPreparationAssistant:
         """
         logger.info(f"Getting or creating label: {label_name}")
         try:
-            # Get existing labels
+            # Check for existing labels
             labels = self.gmail_service.users().labels().list(userId="me").execute()
             for label in labels["labels"]:
                 if label["name"] == label_name:
                     logger.info(f"Label '{label_name}' found with ID: {label['id']}")
                     return label["id"]
+
             # Create the label if it doesn't exist
             label_body = {
                 "name": label_name,
@@ -232,13 +229,14 @@ class MeetingPreparationAssistant:
             logger.info("No new meeting invitations found")
             raise MessagesNotFound("No new meeting invitations found.")
 
+        # Filter messages without the 'Processed' label
         unprocessed_messages = self.get_unprocessed_messages(messages)
         if not unprocessed_messages:
             logger.info("No unprocessed meeting invitations found")
             raise MessagesNotFound("No unprocessed meeting invitations found.")
 
+        # Extract event info from unprocessed messages
         events_info: list[EventInfo] = []
-
         for msg in unprocessed_messages:
             event_info = self.process_message(msg)
             if event_info:
@@ -247,6 +245,9 @@ class MeetingPreparationAssistant:
         return EventsInfo(events_info=events_info)
 
     def get_messages_with_ics_attachments(self) -> list:
+        """
+        Retrieve a list of messages that contain .ics attachments.
+        """
         query = "in:inbox has:attachment filename:ics"
         response = (
             self.gmail_service.users()
@@ -257,6 +258,9 @@ class MeetingPreparationAssistant:
         return response.get("messages", [])
 
     def get_unprocessed_messages(self, messages: list) -> list:
+        """
+        Filter messages to retrieve those that haven't been labeled as 'Processed'.
+        """
         unprocessed_messages = []
         for msg in messages:
             msg_metadata = (
@@ -266,6 +270,7 @@ class MeetingPreparationAssistant:
                 .execute()
             )
             label_ids = msg_metadata.get("labelIds", [])
+            # Add to unprocessed list if message does not have the 'Processed' label
             if self.processed_label_id not in label_ids:
                 unprocessed_messages.append(msg)
             else:
@@ -273,6 +278,19 @@ class MeetingPreparationAssistant:
         return unprocessed_messages
 
     def process_message(self, msg: dict) -> EventInfo:
+        """
+        Process a single message to determine if it is a meeting invite and extract event information.
+
+        Parameters
+        ----------
+        msg : dict
+            The message object from Gmail.
+
+        Returns
+        -------
+        EventInfo or None
+            Extracted EventInfo object if message is a meeting invite, otherwise None.
+        """
         email_message = self.get_email_message(msg["id"])
         subject, body, ics_file_data = self.extract_email_parts(email_message)
 
@@ -286,6 +304,19 @@ class MeetingPreparationAssistant:
             return None
 
     def get_email_message(self, message_id: str):
+        """
+        Retrieve the full email message by ID.
+
+        Parameters
+        ----------
+        message_id : str
+            The ID of the email message.
+
+        Returns
+        -------
+        email.message.Message
+            The full email message object.
+        """
         msg_full = (
             self.gmail_service.users()
             .messages()
@@ -296,10 +327,25 @@ class MeetingPreparationAssistant:
         return message_from_bytes(msg_bytes)
 
     def extract_email_parts(self, email_message) -> tuple:
+        """
+        Extract subject, body, and .ics file data from an email message.
+
+        Parameters
+        ----------
+        email_message : email.message.Message
+            The email message to extract from.
+
+        Returns
+        -------
+        tuple
+            The subject, body text, and .ics file data in bytes.
+        """
+        # Decode the email subject
         subject, encoding = decode_header(email_message["subject"])[0]
         if isinstance(subject, bytes):
             subject = subject.decode(encoding or "utf-8")
 
+        # Initialize body and .ics file data placeholders
         body = ""
         ics_file_data = b""
         for part in email_message.walk():
@@ -350,7 +396,7 @@ class MeetingPreparationAssistant:
             ]
         )
         parser = JsonOutputParser(pydantic_object=IsMeetingInvite)
-        llm = ChatOpenAI(model="gpt-4o-mini")
+        llm = ChatDatabricks(endpoint=MODEL_NAME)
         chain = prompt | llm | parser
         result = chain.invoke(
             {
@@ -359,7 +405,8 @@ class MeetingPreparationAssistant:
                 "format_instructions": parser.get_format_instructions(),
             }
         )
-        is_invite = result["is_meeting_invite"]
+        replaced_result = {key.replace("\\", ""): value for key, value in result.items()}
+        is_invite = replaced_result["is_meeting_invite"]
         logger.info(f"LLM determined is_meeting_invite: {is_invite}")
         return is_invite
 
@@ -660,7 +707,7 @@ class MeetingPreparationAssistant:
                 ("human", "Please summarize the following text: {content}"),
             ]
         )
-        llm = ChatOpenAI(model="gpt-4o-mini", max_tokens=150)
+        llm = ChatDatabricks(endpoint=MODEL_NAME, max_tokens=150)
         chain = prompt | llm
         summary = chain.invoke({"content": content}).content
         logger.info("Content summarized using LLM")
@@ -668,7 +715,7 @@ class MeetingPreparationAssistant:
 
     def generate_tasks(self, event_info: EventInfo) -> TaskList:
         """
-        Generate a list of tasks required to prepare for a scheduled event.
+        Generate a list of tasks required to prepare for a scheduled event with human feedback loop.
 
         Parameters
         ----------
@@ -687,50 +734,88 @@ class MeetingPreparationAssistant:
         num_ppl = event_info.num_ppl
         att_contents = event_info.att_contents
 
+        base_prompt = """
+        ## Event Details
+        Event Summary: {title}
+        Description: {description}
+        Meeting Duration (hours): {event_duration}
+        Number of Participants: {num_ppl}
+        Summaries of Attachments: {att_contents}
+
+        ## Instructions
+        Based on the above event details, please propose:
+        - Tasks that should be completed before the event starts
+        - The duration required for each task
+        - Points to keep in mind for each task
+
+        ## Output Format
+        {format_instructions}
+        """
         prompt = ChatPromptTemplate.from_messages(
             [
                 (
                     "system",
-                    "You are a helpful assistant.",
-                ),
-                (
-                    "human",
                     """
-                    ## Event Details
-                    Event Summary: {title}
-                    Description: {description}
-                    Meeting Duration (hours): {event_duration}
-                    Number of Participants: {num_ppl}
-                    Summaries of Attachments: {att_contents}
-
-                    ## Instructions
-                    Based on the above event details, please propose:
-                    - Tasks that should be completed before the event starts
-                    - The duration required for each task
-                    - Points to keep in mind for each task
-
-                    ## Output Format
-                    {format_instructions}
+                    Review the meeting invitation email and create clear, actionable tasks based on the details.
+                    Focus on tasks that help the recipient prepare for the meeting, like reviewing documents, understanding the agenda, or identifying key discussion points.
+                    Ensure each task is directly related to the meeting content and easy to follow.
                     """,
                 ),
+                ("human", base_prompt),
             ]
         )
         parser = JsonOutputParser(pydantic_object=TaskList)
 
-        model = ChatOpenAI(model="gpt-4o-mini", temperature=0.0)
-        chain = prompt | model | parser
-        result = chain.invoke(
-            {
-                "title": title,
-                "description": description,
-                "event_duration": event_duration,
-                "num_ppl": num_ppl,
-                "att_contents": att_contents,
-                "format_instructions": parser.get_format_instructions(),
-            }
-        )
+        max_iterations = 3  # Set the maximum number of loops
+        iteration = 0
+        while iteration < max_iterations:
+            iteration += 1
+            llm = ChatDatabricks(endpoint=MODEL_NAME, temperature=0.0)
+            chain = prompt | llm | parser
+            result = chain.invoke(
+                {
+                    "title": title,
+                    "description": description,
+                    "event_duration": event_duration,
+                    "num_ppl": num_ppl,
+                    "att_contents": att_contents,
+                    "format_instructions": parser.get_format_instructions(),
+                }
+            )
+            replaced_result = {key.replace("\\", ""): value for key, value in result.items()}
+            print("Generated Tasks:")
+            for i, task in enumerate(replaced_result["tasks"]):
+                if i == 0:
+                    print("=" * 100)
+                print(f"""task title: {task["task"]}""")
+                print(f"""task duration: {task["task_duration"]}""")
+                print(f"""note: {task["note"]}""")
+                print("=" * 100)
+
+            # Ask the user for feedback
+            feedback = (
+                input(
+                    f"Iteration {iteration}/{max_iterations}: Are you satisfied with the generated tasks? (yes/no): "
+                )
+                .strip()
+                .lower()
+            )
+            if feedback == "yes":
+                logger.info(f"User is satisfied with the tasks for event: {title}")
+                break
+            else:
+                if iteration < max_iterations:
+                    # Get user's feedback and update the prompt
+                    modification = input(
+                        "Please provide your feedback to improve the tasks:\n"
+                    )
+                    base_prompt += f"\n\n## Additional Instructions\n{modification}"
+                else:
+                    logger.info(
+                        "Maximum iterations reached. Proceeding with the latest tasks."
+                    )
         logger.info(f"Generated tasks for event: {title}")
-        return result
+        return replaced_result
 
     def send_tasklist(self, tasklist: TaskList):
         """
@@ -828,8 +913,9 @@ def main():
                 break
 
             # Wait for 5 minutes before polling again
-            time.sleep(30)
             logger.info("Waiting for 5 minutes before checking for new emails")
+            time.sleep(30)
+
     except KeyboardInterrupt:
         print("\nKeyboardInterrupt detected.")
         time.sleep(0.5)
