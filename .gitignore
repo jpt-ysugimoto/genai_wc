@@ -1,4 +1,5 @@
 *.ics
+.env
 ics_analysis.ipynb
 .ipynb_checkpoints
-credentials.json
+token.json
