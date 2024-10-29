@@ -6,12 +6,20 @@
 
 # COMMAND ----------
 
+# MAGIC %pip install typing_extensions>=4.5 --upgrade
+
+# COMMAND ----------
+
 # MAGIC %pip install -r requirements.txt
 
 # COMMAND ----------
 
 from main2 import main
 main()
+
+# COMMAND ----------
+
+restartPython()
 
 # COMMAND ----------
 

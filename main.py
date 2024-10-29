@@ -6,7 +6,6 @@ import re
 import datetime
 import logging
 from icalendar import Calendar
-from dotenv import load_dotenv
 from pypdf import PdfReader
 from pydantic import BaseModel, Field
 from email import message_from_bytes
@@ -40,6 +39,7 @@ class IsMeetingInvite(BaseModel):
 
 # Model representing event information extracted from an email
 class EventInfo(BaseModel):
+    message_id: str = Field(description="The ID of the email message.")
     event_title: str = Field(description="The title of the event.")
     description: str = Field(description="A detailed description of the event.")
     start: datetime.datetime = Field(
@@ -297,7 +297,8 @@ class MeetingPreparationAssistant:
         if ics_file_data and self.is_meeting_invite(subject, body):
             logger.info(f"Email '{subject}' is identified as a meeting invitation")
             event_info = self.parse_ics_file(ics_file_data)
-            self.add_label_to_message(msg["id"], self.processed_label_id)
+            # Add the message_id to the EventInfo
+            event_info = event_info.copy(update={"message_id": msg["id"]})
             return event_info
         else:
             logger.info(f"Email '{subject}' is not a meeting invitation")
@@ -440,6 +441,7 @@ class MeetingPreparationAssistant:
             else:
                 num_ppl = 1 if attendees else 0
             event_info = EventInfo(
+                message_id="",  # Placeholder; will be updated later
                 event_title=event.get("SUMMARY"),
                 description=event.get("DESCRIPTION", ""),
                 start=event.get("DTSTART").dt,
@@ -903,6 +905,8 @@ def main():
                 for event_info in events.events_info:
                     task_list = mpa.generate_tasks(event_info)
                     mpa.send_tasklist(task_list)
+                    # Add the 'Processed' label after sending the task list
+                    mpa.add_label_to_message(event_info.message_id, mpa.processed_label_id)
             except MessagesNotFound:
                 logger.info("No new messages found; waiting before retrying")
             except HttpError as error:
@@ -914,7 +918,7 @@ def main():
 
             # Wait for 5 minutes before polling again
             logger.info("Waiting for 5 minutes before checking for new emails")
-            time.sleep(30)
+            time.sleep(300)  # Changed to 300 seconds (5 minutes)
 
     except KeyboardInterrupt:
         print("\nKeyboardInterrupt detected.")
