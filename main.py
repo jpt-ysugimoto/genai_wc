@@ -3,9 +3,11 @@ import base64
 import io
 import time
 import re
+import pickle
 import datetime
 import logging
 from icalendar import Calendar
+from pathlib import Path
 from pypdf import PdfReader
 from pydantic import BaseModel, Field
 from email import message_from_bytes
@@ -109,6 +111,7 @@ class MeetingPreparationAssistant:
             "https://www.googleapis.com/auth/gmail.modify",
         ]
         creds: Credentials | None = None
+        self.mod_filepath = Path("modifications.pickle")
         if os.path.exists("token.json"):
             creds = Credentials.from_authorized_user_file("token.json", SCOPES)
             logger.info("Loaded credentials from token.json")
@@ -406,7 +409,9 @@ class MeetingPreparationAssistant:
                 "format_instructions": parser.get_format_instructions(),
             }
         )
-        replaced_result = {key.replace("\\", ""): value for key, value in result.items()}
+        replaced_result = {
+            key.replace("\\", ""): value for key, value in result.items()
+        }
         is_invite = replaced_result["is_meeting_invite"]
         logger.info(f"LLM determined is_meeting_invite: {is_invite}")
         return is_invite
@@ -715,6 +720,110 @@ class MeetingPreparationAssistant:
         logger.info("Content summarized using LLM")
         return summary
 
+    def load_modifications(self) -> list[str]:
+        """
+        Load modifications from a pickle file.
+
+        Returns
+        -------
+        list[str]
+            A list of modifications.
+        """
+        if not self.mod_filepath.exists():
+            logger.info(
+                f"No modifications file found at {self.mod_filepath}. Starting with an empty list."
+            )
+            return []
+
+        try:
+            with self.mod_filepath.open("rb") as file:
+                modifications = pickle.load(file)
+            if not isinstance(modifications, list):
+                logger.error(f"Invalid format in {self.mod_filepath}. Expected a list.")
+                return []
+            logger.info(
+                f"Loaded {len(modifications)} modifications from {self.mod_filepath}."
+            )
+            return modifications
+        except Exception as e:
+            logger.error(f"Failed to load modifications from {self.mod_filepath}: {e}")
+            return []
+
+    def save_modifications(self, modification: str):
+        """
+        Save a single modification to a pickle file by appending it to a list of modifications.
+
+        Parameters
+        ----------
+        modification : str
+            A single modification string to save.
+        """
+        """
+        Save a single modification to a pickle file by appending it to a list of modifications.
+
+        Parameters
+        ----------
+        modification : str
+            A single modification string to save.
+        """
+        modifications = self.load_modifications()
+
+        # Append the new modification
+        modifications.append(modification)
+
+        # Save the updated modifications list back to the pickle file
+        try:
+            with self.mod_filepath.open("wb") as file:
+                pickle.dump(modifications, file)
+            logger.info(f"Saved modification to {self.mod_filepath}.")
+        except Exception as e:
+            logger.error(f"Failed to save modifications to {self.mod_filepath}: {e}")
+
+    def summarize_modifications(self, modifications) -> str:
+        """
+        Load modifications from the JSON file and summarize them using the LLM
+        if there are five or more modifications.
+
+        Returns
+        -------
+        str
+            The summarized modifications to be appended to the base prompt.
+            Returns an empty string if there are fewer than five modifications.
+        """
+
+        logger.info("Summarizing accumulated modifications.")
+
+        # Initialize the Language Model
+        llm = ChatDatabricks(endpoint=MODEL_NAME, temperature=0.0)
+
+        # Create the prompt template with system and human messages
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                (
+                    "system",
+                    "You are a helpful assistant that summarizes user feedback for improving task generation.",
+                ),
+                (
+                    "human",
+                    """
+                    You have received the following user feedback to improve task generation:
+                    {modifications}
+
+                    Please provide a concise summary of the feedback to incorporate into the task generation instructions.
+                    """,
+                ),
+            ]
+        )
+
+        # Build the chain: prompt -> LLM -> parser
+        chain = prompt | llm
+
+        # Invoke the chain to get the summary
+        summarized_mod = chain.invoke({"modifications": modifications}).content
+        logger.info("Successfully summarized modifications.")
+
+        return summarized_mod
+
     def generate_tasks(self, event_info: EventInfo) -> TaskList:
         """
         Generate a list of tasks required to prepare for a scheduled event with human feedback loop.
@@ -753,25 +862,31 @@ class MeetingPreparationAssistant:
         ## Output Format
         {format_instructions}
         """
-        prompt = ChatPromptTemplate.from_messages(
-            [
-                (
-                    "system",
-                    """
-                    Review the meeting invitation email and create clear, actionable tasks based on the details.
-                    Focus on tasks that help the recipient prepare for the meeting, like reviewing documents, understanding the agenda, or identifying key discussion points.
-                    Ensure each task is directly related to the meeting content and easy to follow.
-                    """,
-                ),
-                ("human", base_prompt),
-            ]
-        )
+
+        mod = self.load_modifications()
+        if len(mod) >= 2:  # TODO: 5
+            summarized_mod = self.summarize_modifications(mod)
+            base_prompt += f"\n\n## Additional Instructions\n{summarized_mod}"
         parser = JsonOutputParser(pydantic_object=TaskList)
 
         max_iterations = 3  # Set the maximum number of loops
         iteration = 0
+        modification = None
         while iteration < max_iterations:
             iteration += 1
+            prompt = ChatPromptTemplate.from_messages(
+                [
+                    (
+                        "system",
+                        """
+                    Review the meeting invitation email and create clear, actionable tasks based on the details.
+                    Focus on tasks that help the recipient prepare for the meeting, like reviewing documents, understanding the agenda, or identifying key discussion points.
+                    Ensure each task is directly related to the meeting content and easy to follow.
+                    """,
+                    ),
+                    ("human", base_prompt),
+                ]
+            )
             llm = ChatDatabricks(endpoint=MODEL_NAME, temperature=0.0)
             chain = prompt | llm | parser
             result = chain.invoke(
@@ -784,7 +899,9 @@ class MeetingPreparationAssistant:
                     "format_instructions": parser.get_format_instructions(),
                 }
             )
-            replaced_result = {key.replace("\\", ""): value for key, value in result.items()}
+            replaced_result = {
+                key.replace("\\", ""): value for key, value in result.items()
+            }
             print("Generated Tasks:")
             for i, task in enumerate(replaced_result["tasks"]):
                 if i == 0:
@@ -804,6 +921,7 @@ class MeetingPreparationAssistant:
             )
             if feedback == "yes":
                 logger.info(f"User is satisfied with the tasks for event: {title}")
+                self.save_modifications(modification)
                 break
             else:
                 if iteration < max_iterations:
@@ -906,7 +1024,9 @@ def main():
                     task_list = mpa.generate_tasks(event_info)
                     mpa.send_tasklist(task_list)
                     # Add the 'Processed' label after sending the task list
-                    mpa.add_label_to_message(event_info.message_id, mpa.processed_label_id)
+                    mpa.add_label_to_message(
+                        event_info.message_id, mpa.processed_label_id
+                    )
             except MessagesNotFound:
                 logger.info("No new messages found; waiting before retrying")
             except HttpError as error:

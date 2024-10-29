@@ -19,7 +19,8 @@ main()
 
 # COMMAND ----------
 
-restartPython()
+# MAGIC %md
+# MAGIC
 
 # COMMAND ----------
 
