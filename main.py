@@ -6,6 +6,7 @@ import re
 import pickle
 import datetime
 import logging
+from pathlib import Path
 from icalendar import Calendar
 from pathlib import Path
 from pypdf import PdfReader
@@ -720,110 +721,6 @@ class MeetingPreparationAssistant:
         logger.info("Content summarized using LLM")
         return summary
 
-    def load_modifications(self) -> list[str]:
-        """
-        Load modifications from a pickle file.
-
-        Returns
-        -------
-        list[str]
-            A list of modifications.
-        """
-        if not self.mod_filepath.exists():
-            logger.info(
-                f"No modifications file found at {self.mod_filepath}. Starting with an empty list."
-            )
-            return []
-
-        try:
-            with self.mod_filepath.open("rb") as file:
-                modifications = pickle.load(file)
-            if not isinstance(modifications, list):
-                logger.error(f"Invalid format in {self.mod_filepath}. Expected a list.")
-                return []
-            logger.info(
-                f"Loaded {len(modifications)} modifications from {self.mod_filepath}."
-            )
-            return modifications
-        except Exception as e:
-            logger.error(f"Failed to load modifications from {self.mod_filepath}: {e}")
-            return []
-
-    def save_modifications(self, modification: str):
-        """
-        Save a single modification to a pickle file by appending it to a list of modifications.
-
-        Parameters
-        ----------
-        modification : str
-            A single modification string to save.
-        """
-        """
-        Save a single modification to a pickle file by appending it to a list of modifications.
-
-        Parameters
-        ----------
-        modification : str
-            A single modification string to save.
-        """
-        modifications = self.load_modifications()
-
-        # Append the new modification
-        modifications.append(modification)
-
-        # Save the updated modifications list back to the pickle file
-        try:
-            with self.mod_filepath.open("wb") as file:
-                pickle.dump(modifications, file)
-            logger.info(f"Saved modification to {self.mod_filepath}.")
-        except Exception as e:
-            logger.error(f"Failed to save modifications to {self.mod_filepath}: {e}")
-
-    def summarize_modifications(self, modifications) -> str:
-        """
-        Load modifications from the JSON file and summarize them using the LLM
-        if there are five or more modifications.
-
-        Returns
-        -------
-        str
-            The summarized modifications to be appended to the base prompt.
-            Returns an empty string if there are fewer than five modifications.
-        """
-
-        logger.info("Summarizing accumulated modifications.")
-
-        # Initialize the Language Model
-        llm = ChatDatabricks(endpoint=MODEL_NAME, temperature=0.0)
-
-        # Create the prompt template with system and human messages
-        prompt = ChatPromptTemplate.from_messages(
-            [
-                (
-                    "system",
-                    "You are a helpful assistant that summarizes user feedback for improving task generation.",
-                ),
-                (
-                    "human",
-                    """
-                    You have received the following user feedback to improve task generation:
-                    {modifications}
-
-                    Please provide a concise summary of the feedback to incorporate into the task generation instructions.
-                    """,
-                ),
-            ]
-        )
-
-        # Build the chain: prompt -> LLM -> parser
-        chain = prompt | llm
-
-        # Invoke the chain to get the summary
-        summarized_mod = chain.invoke({"modifications": modifications}).content
-        logger.info("Successfully summarized modifications.")
-
-        return summarized_mod
-
     def generate_tasks(self, event_info: EventInfo) -> TaskList:
         """
         Generate a list of tasks required to prepare for a scheduled event with human feedback loop.
@@ -862,31 +759,25 @@ class MeetingPreparationAssistant:
         ## Output Format
         {format_instructions}
         """
-
-        mod = self.load_modifications()
-        if len(mod) >= 2:  # TODO: 5
-            summarized_mod = self.summarize_modifications(mod)
-            base_prompt += f"\n\n## Additional Instructions\n{summarized_mod}"
-        parser = JsonOutputParser(pydantic_object=TaskList)
-
-        max_iterations = 3  # Set the maximum number of loops
-        iteration = 0
-        modification = None
-        while iteration < max_iterations:
-            iteration += 1
-            prompt = ChatPromptTemplate.from_messages(
-                [
-                    (
-                        "system",
-                        """
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                (
+                    "system",
+                    """
                     Review the meeting invitation email and create clear, actionable tasks based on the details.
                     Focus on tasks that help the recipient prepare for the meeting, like reviewing documents, understanding the agenda, or identifying key discussion points.
                     Ensure each task is directly related to the meeting content and easy to follow.
                     """,
-                    ),
-                    ("human", base_prompt),
-                ]
-            )
+                ),
+                ("human", base_prompt),
+            ]
+        )
+        parser = JsonOutputParser(pydantic_object=TaskList)
+
+        max_iterations = 3  # Set the maximum number of loops
+        iteration = 0
+        while iteration < max_iterations:
+            iteration += 1
             llm = ChatDatabricks(endpoint=MODEL_NAME, temperature=0.0)
             chain = prompt | llm | parser
             result = chain.invoke(
