@@ -22,6 +22,7 @@ wikipedia = "*"
 grandalf = "*"
 mlflow = "==2.14.3"
 python-dotenv = "==1.0.1"
+langchain-openai = "*"
 
 [dev-packages]
 

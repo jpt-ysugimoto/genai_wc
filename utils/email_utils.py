@@ -1,5 +1,3 @@
-# utils/email_utils.py
-
 import logging
 from icalendar import Calendar
 
