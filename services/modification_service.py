@@ -57,7 +57,9 @@ class ModificationService:
         """
         modifications = self.load_modifications()
         modifications.append(modification)
-
+        # to prevent an excessive increase in modifications.
+        if len(modification) > 30:
+            modification = modification[:30]
         try:
             with self.mod_filepath.open("wb") as file:
                 pickle.dump(modifications, file)
