@@ -7,3 +7,4 @@ main_old.py
 modifications.pickle
 Pipfile
 Pipfile.lock
+__pycache__
