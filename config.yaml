@@ -1,0 +1,29 @@
+# llm configuration
+model_name: "databricks-dbrx-instruct" # The endpoint or name of the LLM to use.
+task_generation_temperature: 0.0 # Control the LLM that generates tasks.
+
+# google api configuration
+scopes:
+  - "https://www.googleapis.com/auth/drive.readonly"
+  - "https://www.googleapis.com/auth/documents.readonly"
+  - "https://www.googleapis.com/auth/spreadsheets.readonly"
+  - "https://www.googleapis.com/auth/presentations.readonly"
+  - "https://www.googleapis.com/auth/gmail.send"
+  - "https://www.googleapis.com/auth/gmail.readonly"
+  - "https://www.googleapis.com/auth/gmail.modify"
+token_file: "token.json" # File path for storing OAuth 2.0 tokens.
+
+# file paths
+modifications_file: "modifications.pickle" # File to store user feedback modifications.
+
+# gmail configuration
+processed_label_name: "Processed" # Label name for processed emails.
+gmail_query: "in:inbox has:attachment filename:ics" # Query to find meeting invitations.
+max_email_results: 10 # Maximum number of emails to process at a time.
+
+# task generation
+max_iterations: 3 # Max feedback loops for task generation.
+modification_summary_threshold: 5 # Number of feedback entries before summarizing.
+
+# email polling behavior
+email_polling_retry_interval: 300 # Time in seconds between email checks.

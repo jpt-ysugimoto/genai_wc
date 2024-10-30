@@ -1,17 +1,18 @@
 import logging
 import re
 import io
-
+from typing import Any
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 from googleapiclient.errors import HttpError
 from pypdf import PdfReader
 
 logger = logging.getLogger(__name__)
+Credentials = LLMService = Any
 
 
 class DriveService:
-    def __init__(self, creds):
+    def __init__(self, creds: Credentials):
         """
         Initialize the Google Drive API service.
 
@@ -39,7 +40,7 @@ class DriveService:
             logger.error(f"Error initializing Drive service: {error}")
             raise Exception(f"An error occurred: {error}")
 
-    def fetch_attachments(self, attachments, llm_service):
+    def fetch_attachments(self, attachments: list, llm_service: LLMService):
         """
         Handle and process attachments from the event.
 
@@ -97,7 +98,7 @@ class DriveService:
             logger.info(f"Processed attachment '{title}'")
         return attachment_contents
 
-    def extract_file_id(self, url):
+    def extract_file_id(self, url: str) -> str | None:
         """
         Extract the file ID from a Google Drive URL.
 
@@ -118,7 +119,7 @@ class DriveService:
             logger.warning(f"Failed to extract file ID from URL: {url}")
             return None
 
-    def get_file_metadata(self, file_id):
+    def get_file_metadata(self, file_id: str) -> dict:
         """
         Retrieve metadata for a file in Google Drive.
 
@@ -218,7 +219,7 @@ class DriveService:
                                 text += content
         return text
 
-    def download_and_extract_pdf(self, file_id):
+    def download_and_extract_pdf(self, file_id: str) -> str:
         """
         Download a PDF file and extract text from it.
 
@@ -247,7 +248,7 @@ class DriveService:
             text += page.extract_text()
         return text
 
-    def download_file_as_text(self, file_id):
+    def download_file_as_text(self, file_id: str) -> str:
         """
         Download a text or CSV file and return its content.
 

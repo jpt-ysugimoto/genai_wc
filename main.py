@@ -1,6 +1,6 @@
 import logging
 import time
-
+from config import Config
 from assistant.meeting_preparation_assistant import MeetingPreparationAssistant
 from exceptions.exceptions import MessagesNotFound
 from googleapiclient.errors import HttpError
@@ -8,13 +8,14 @@ from googleapiclient.errors import HttpError
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+config = Config()
 
 
 def main():
     """Main function to run the Meeting Preparation Assistant."""
     try:
         logger.info("Starting Meeting Preparation Assistant")
-        mpa = MeetingPreparationAssistant()
+        mpa = MeetingPreparationAssistant(config)
         while True:
             try:
                 events = mpa.fetch_info_from_emails()
@@ -39,7 +40,7 @@ def main():
                 break
 
             logger.info("Waiting for 5 minutes before checking for new emails")
-            time.sleep(300)
+            time.sleep(config.email_polling_retry_interval)
 
     except KeyboardInterrupt:
         print("\nKeyboardInterrupt detected.")

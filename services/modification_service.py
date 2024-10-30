@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 
 
 class ModificationService:
-    def __init__(self, mod_filepath: Path):
+    def __init__(self, mod_file: Path):
         """
         Initialize the ModificationService.
 
@@ -15,7 +15,7 @@ class ModificationService:
         mod_filepath : Path
             The file path to store modifications.
         """
-        self.mod_filepath = mod_filepath
+        self.mod_filepath = Path(mod_file)
 
     def load_modifications(self) -> list:
         """
@@ -46,7 +46,7 @@ class ModificationService:
             logger.error(f"Failed to load modifications from {self.mod_filepath}: {e}")
             return []
 
-    def save_modifications(self, modification):
+    def save_modifications(self, modification: str):
         """
         Save a single modification to a pickle file by appending it to a list of modifications.
 

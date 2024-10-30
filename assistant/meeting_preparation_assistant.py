@@ -1,11 +1,9 @@
 import os
 import logging
-from pathlib import Path
+from typing import Any
 import base64
-
 from google.oauth2.credentials import Credentials
 from googleapiclient.errors import HttpError
-
 from services.gmail_service import GmailService
 from services.drive_service import DriveService
 from services.llm_service import LLMService
@@ -15,39 +13,45 @@ from exceptions.exceptions import MessagesNotFound
 from models.models import EventsInfo
 
 logger = logging.getLogger(__name__)
+Config = Any
 
 
 class MeetingPreparationAssistant:
-    def __init__(self):
+    def __init__(self, config: Config):
         """
         Initialize the MeetingPreparationAssistant by setting up credentials and API services.
+
+        Parameters
+        ----------
+        config : Config
+            Read each value stored in the config.yaml.
         """
-        SCOPES = [
-            "https://www.googleapis.com/auth/drive.readonly",
-            "https://www.googleapis.com/auth/documents.readonly",
-            "https://www.googleapis.com/auth/spreadsheets.readonly",
-            "https://www.googleapis.com/auth/presentations.readonly",
-            "https://www.googleapis.com/auth/gmail.send",
-            "https://www.googleapis.com/auth/gmail.readonly",
-            "https://www.googleapis.com/auth/gmail.modify",
-        ]
+
         creds = None
-        self.mod_filepath = Path("modifications.pickle")
-        if os.path.exists("token.json"):
-            creds = Credentials.from_authorized_user_file("token.json", SCOPES)
+        token_file = config.token_file
+        if os.path.exists(token_file):
+            creds = Credentials.from_authorized_user_file(
+                config.token_file, config.scopes
+            )
             logger.info("Loaded credentials from token.json")
         else:
-            logger.error("token.json not found")
+            logger.error(f"{token_file} not found")
             raise Exception("token.json not found")
 
         try:
-            self.gmail_service = GmailService(creds)
+            self.gmail_service = GmailService(
+                creds, config.max_email_results, config.gmail_query
+            )
             self.drive_service = DriveService(creds)
-
-            self.llm_service = LLMService(model_name="databricks-dbrx-instruct")
-            self.modification_service = ModificationService(self.mod_filepath)
+            self.llm_service = LLMService(
+                config.model_name,
+                config.max_iterations,
+                config.modification_summary_threshold,
+                config.task_generation_temperature,
+            )
+            self.modification_service = ModificationService(config.modifications_file)
             self.processed_label_id = self.gmail_service.get_or_create_label(
-                "Processed"
+                config.processed_label_name
             )
             self.email_utils = EmailUtils(self.drive_service, self.llm_service)
         except HttpError as error:
@@ -113,7 +117,7 @@ class MeetingPreparationAssistant:
         self.send_email(message)
         logger.info(f"Task list sent for event: {title}")
 
-    def create_message(self, subject: str, body_text: str):
+    def create_message(self, subject: str, body_text: str) -> dict:
         """
         Create an email message.
 
@@ -144,7 +148,7 @@ class MeetingPreparationAssistant:
         raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
         return {"raw": raw_message}
 
-    def send_email(self, message):
+    def send_email(self, message: dict) -> dict:
         """
         Send an email through the Gmail API.
 

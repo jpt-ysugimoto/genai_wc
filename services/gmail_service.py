@@ -1,16 +1,18 @@
 import base64
 import logging
+import email
 from email import message_from_bytes
 from email.header import decode_header
-
+from typing import Any
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 logger = logging.getLogger(__name__)
+Credentials = Any
 
 
 class GmailService:
-    def __init__(self, creds):
+    def __init__(self, creds: Credentials, max_email_results: int, gmail_query: str):
         """
         Initialize the Gmail API service.
 
@@ -18,7 +20,14 @@ class GmailService:
         ----------
         creds : Credentials
             OAuth2 credentials for Gmail API access.
+        max_email_results : int
+            Maximum number of emails to process at a time.
+        gmail_query : str
+            Query to find meeting invitations.
         """
+        self.max_email_results = max_email_results
+        self.gmail_query = gmail_query
+
         try:
             self.service = build(
                 "gmail", "v1", credentials=creds, cache_discovery=False
@@ -28,7 +37,7 @@ class GmailService:
             logger.error(f"Error initializing Gmail service: {error}")
             raise Exception(f"An error occurred: {error}")
 
-    def get_or_create_label(self, label_name):
+    def get_or_create_label(self, label_name: str) -> str:
         """
         Retrieve the ID of the specified label. Create it if it doesn't exist.
 
@@ -67,7 +76,7 @@ class GmailService:
             logger.error(f"Error getting or creating label '{label_name}': {error}")
             raise
 
-    def add_label_to_message(self, message_id, label_id):
+    def add_label_to_message(self, message_id: str, label_id: str):
         """
         Add a label to a specific message.
 
@@ -97,16 +106,15 @@ class GmailService:
         list
             A list of message objects.
         """
-        query = "in:inbox has:attachment filename:ics"
         response = (
             self.service.users()
             .messages()
-            .list(userId="me", q=query, maxResults=2)
+            .list(userId="me", q=self.gmail_query, maxResults=self.max_email_results)
             .execute()
         )
         return response.get("messages", [])
 
-    def get_unprocessed_messages(self, messages, processed_label_id):
+    def get_unprocessed_messages(self, messages: list, processed_label_id: str) -> list:
         """
         Filter messages to find those without the 'Processed' label.
 
@@ -137,7 +145,7 @@ class GmailService:
                 logger.info(f"Message ID '{msg['id']}' already processed; skipping")
         return unprocessed_messages
 
-    def get_email_message(self, message_id):
+    def get_email_message(self, message_id: str) -> email.message.Message:
         """
         Retrieve the full email message by ID.
 
@@ -160,7 +168,7 @@ class GmailService:
         msg_bytes = base64.urlsafe_b64decode(msg_full["raw"])
         return message_from_bytes(msg_bytes)
 
-    def extract_email_parts(self, email_message):
+    def extract_email_parts(self, email_message: email.message.Message) -> tuple:
         """
         Extract subject, body, and .ics file data from an email message.
 

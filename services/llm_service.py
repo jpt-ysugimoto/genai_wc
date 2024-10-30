@@ -1,20 +1,22 @@
 import logging
-
+from typing import Any
 from langchain_community.chat_models import ChatDatabricks
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from models.models import IsMeetingInvite, TaskList
-from dotenv import load_dotenv
-import os
 
 logger = logging.getLogger(__name__)
-
-load_dotenv()
-os.getenv("OPENAI_API_KEY")
+EventInfo = Any
 
 
 class LLMService:
-    def __init__(self, model_name):
+    def __init__(
+        self,
+        model_name: str,
+        max_iterations: int,
+        modification_summary_threshold: int,
+        task_generation_temperature: float,
+    ):
         """
         Initialize the Language Model service.
 
@@ -22,10 +24,19 @@ class LLMService:
         ----------
         model_name : str
             The name of the LLM model.
+        max_iterations : int
+            Max feedback loops for task generation.
+        modification_summary_threshold : int
+            Number of feedback entries before summarizing.
+        task_generation_temperature : float
+            Control the LLM that generates tasks.
         """
         self.model_name = model_name
+        self.max_iterations = max_iterations
+        self.modification_summary_threshold = modification_summary_threshold
+        self.task_generation_temperature = task_generation_temperature
 
-    def is_meeting_invite(self, subject, body):
+    def is_meeting_invite(self, subject: str, body: str) -> bool:
         """
         Use LLM to determine if the email is a meeting invite.
 
@@ -78,7 +89,7 @@ class LLMService:
         logger.info(f"LLM determined is_meeting_invite: {is_invite}")
         return is_invite
 
-    def summarize_with_llm(self, content):
+    def summarize_with_llm(self, content: str) -> str:
         """
         Use LLM to summarize the given content.
 
@@ -105,7 +116,7 @@ class LLMService:
         logger.info("Content summarized using LLM")
         return summary
 
-    def summarize_modifications(self, modifications):
+    def summarize_modifications(self, modifications: list) -> str:
         """
         Summarize accumulated user feedback using LLM.
 
@@ -144,7 +155,7 @@ class LLMService:
         logger.info("Successfully summarized modifications.")
         return summarized_mod
 
-    def generate_tasks(self, event_info, modifications):
+    def generate_tasks(self, event_info: EventInfo, modifications: list) -> dict:
         """
         Generate a list of tasks required to prepare for a scheduled event with human feedback loop.
 
@@ -185,30 +196,31 @@ class LLMService:
         {format_instructions}
         """
 
-        if len(modifications) >= 2:  # Adjust as needed
+        if len(modifications) >= self.modification_summary_threshold:
             summarized_mod = self.summarize_modifications(modifications)
             base_prompt += f"\n\n## Additional Instructions\n{summarized_mod}"
         parser = JsonOutputParser(pydantic_object=TaskList)
 
-        max_iterations = 3
         iteration = 0
         modification = None
-        while iteration < max_iterations:
+        while iteration < self.max_iterations:
             iteration += 1
             prompt = ChatPromptTemplate.from_messages(
                 [
                     (
                         "system",
                         """
-                    Review the meeting invitation email and create clear, actionable tasks based on the details.
-                    Focus on tasks that help the recipient prepare for the meeting, like reviewing documents, understanding the agenda, or identifying key discussion points.
-                    Ensure each task is directly related to the meeting content and easy to follow.
-                    """,
+                        Review the meeting invitation email and create clear, actionable tasks based on the details.
+                        Focus on tasks that help the recipient prepare for the meeting, like reviewing documents, understanding the agenda, or identifying key discussion points.
+                        Ensure each task is directly related to the meeting content and easy to follow.
+                        """,
                     ),
                     ("human", base_prompt),
                 ]
             )
-            llm = ChatDatabricks(endpoint=self.model_name, temperature=0.0)
+            llm = ChatDatabricks(
+                endpoint=self.model_name, temperature=self.task_generation_temperature
+            )
             chain = prompt | llm | parser
             result = chain.invoke(
                 {
@@ -234,7 +246,7 @@ class LLMService:
 
             feedback = (
                 input(
-                    f"Iteration {iteration}/{max_iterations}: Are you satisfied with the generated tasks? (yes/no): "
+                    f"Iteration {iteration}/{self.max_iterations}: Are you satisfied with the generated tasks? (yes/no): "
                 )
                 .strip()
                 .lower()
@@ -243,7 +255,7 @@ class LLMService:
                 logger.info(f"User is satisfied with the tasks for event: {title}")
                 break
             else:
-                if iteration < max_iterations:
+                if iteration < self.max_iterations:
                     modification = input(
                         "Please provide your feedback to improve the tasks:\n"
                     )

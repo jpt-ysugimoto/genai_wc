@@ -1,13 +1,14 @@
 import logging
 from icalendar import Calendar
-
+from typing import Any
 from models.models import EventInfo
 
 logger = logging.getLogger(__name__)
+DriveService = LLMService = GmailService = Any
 
 
 class EmailUtils:
-    def __init__(self, drive_service, llm_service):
+    def __init__(self, drive_service: DriveService, llm_service: LLMService):
         """
         Initialize EmailUtils with required services.
 
@@ -17,17 +18,13 @@ class EmailUtils:
             An instance of DriveService.
         llm_service : LLMService
             An instance of LLMService.
-        docs_service : DocsService
-            An instance of DocsService.
-        sheets_service : SheetsService
-            An instance of SheetsService.
-        slides_service : SlidesService
-            An instance of SlidesService.
         """
         self.drive_service = drive_service
         self.llm_service = llm_service
 
-    def process_message(self, msg, gmail_service, processed_label_id):
+    def process_message(
+        self, msg: dict, gmail_service: GmailService, processed_label_id: str
+    ) -> EventInfo | None:
         """
         Process a single message to determine if it is a meeting invite and extract event information.
 
@@ -57,7 +54,7 @@ class EmailUtils:
             logger.info(f"Email '{subject}' is not a meeting invitation")
             return None
 
-    def parse_ics_file(self, ics_data_bytes):
+    def parse_ics_file(self, ics_data_bytes: bytes) -> EventInfo:
         """
         Parse the .ics file from the email and extract event information.
 
