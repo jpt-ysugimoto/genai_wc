@@ -1,181 +1,157 @@
 # Meeting Preparation Assistant
 
-This repository contains the **Meeting Preparation Assistant**, a Python application that automates the process of preparing for upcoming meetings by:
+**Important:** The `token.json` file is required for authentication with Google APIs. Make sure to generate and include this file in your project directory before running the script.
 
-- Fetching meeting invitations from Gmail.
-- Extracting event details and attachments.
-- Summarizing attachment content using LLMs.
-- Generating a list of preparatory tasks with a human-in-the-loop feedback mechanism.
-- Sending the finalized task list back to the user via email.
+The Meeting Preparation Assistant is a Python script that automates your meeting preparation by:
+
+- Scanning your Gmail inbox for new meeting invitations with `.ics` attachments.
+- Extracting event details and summarizing attachments using a Large Language Model (LLM).
+- Generating a customized list of tasks to help you prepare for the meeting.
+- **Incorporating your feedback to improve future task generation.**
+- Sending the task list to you via email and labeling processed emails.
+
+---
 
 ## Table of Contents
 
 - [Meeting Preparation Assistant](#meeting-preparation-assistant)
   - [Table of Contents](#table-of-contents)
-  - [Features](#features)
-  - [Architecture](#architecture)
   - [Prerequisites](#prerequisites)
-  - [Installation](#installation)
-  - [Setting Up Google API Credentials](#setting-up-google-api-credentials)
-    - [Enabling APIs](#enabling-apis)
-    - [Creating OAuth 2.0 Client Credentials](#creating-oauth-20-client-credentials)
-    - [Obtaining `token.json`](#obtaining-tokenjson)
-  - [Running the Application](#running-the-application)
-  - [Usage](#usage)
+  - [Setup Instructions](#setup-instructions)
+  - [Running the Script](#running-the-script)
+  - [How It Works](#how-it-works)
+  - [Interactive Feedback Loop](#interactive-feedback-loop)
+    - [Key Feature: Your Feedback Improves Future Tasks](#key-feature-your-feedback-improves-future-tasks)
+  - [Configuration](#configuration)
+    - [YAML Configuration File](#yaml-configuration-file)
+    - [Configuration Variables](#configuration-variables)
 
-## Features
-
-- **Email Processing**: Scans your Gmail inbox for new meeting invitations containing `.ics` calendar files.
-- **Event Extraction**: Parses `.ics` files to extract event details like title, description, timing, and attendees.
-- **Attachment Handling**: Downloads and processes various attachment types from Google Drive, including Google Docs, Sheets, Slides, PDFs, and plain text files.
-- **Content Summarization**: Uses LLMs to summarize the content of attachments.
-- **Task Generation**: Generates a list of preparatory tasks for the meeting, incorporating human feedback in up to three iterations.
-- **Email Notifications**: Sends the finalized task list back to the user via email.
-
-## Architecture
-
-The application follows a modular design, integrating multiple Google APIs and LLMs. Below is an architecture diagram illustrating the flow of data and processes:
-
-```mermaid
-flowchart TD
-    A[Gmail Inbox] -->|Fetch Emails| B[MeetingPreparationAssistant]
-    B -->|Parse Emails| C[Email Processing]
-    C -->|Extract Event Info| D[EventInfo Objects]
-    D -->|Fetch Attachments| E[Google Drive]
-    E -->|Download Files| F[Attachment Processing]
-    F -->|Summarize Content| G[LLMs]
-    G -->|Generate Summaries| H[Attachment Summaries]
-    H -->|Generate Tasks| I[Task Generation with Feedback Loop]
-    I -->|Finalize Task List| J[TaskList Object]
-    J -->|Send Email| K[Gmail Sent Items]
-```
+---
 
 ## Prerequisites
 
-- Python 3.8 or higher
-- Google Cloud Platform account
-- Necessary Google APIs enabled:
-  - Gmail API
-  - Google Drive API
-  - Google Docs API
-  - Google Sheets API
-  - Google Slides API
-  - Google Calendar API
+- **Python 3.8 or higher**
+- **Google account** with Gmail, Google Calendar, Drive, Docs, Sheets, and Slides access.
+- **Google API credentials** (`credentials.json` and `token.json` files).
+- **Databricks LLM endpoint** for language processing tasks.
 
-## Installation
-**Install dependencies**
+---
+
+## Setup Instructions
+
+1. **Clone the Repository**
+
+   ```bash
+   git clone https://github.com/yourusername/meeting-preparation-assistant.git
+   cd meeting-preparation-assistant
+   ```
+
+2. **Install Dependencies**
 
    ```bash
    pip install -r requirements.txt
    ```
 
-## Setting Up Google API Credentials
+3. **Set Up Google API Credentials**
 
-To interact with Google APIs, you'll need to set up OAuth 2.0 credentials and obtain a `token.json` file.
+   - Enable the necessary Google APIs in the [Google Cloud Console](https://console.cloud.google.com/).
+   - Create OAuth credentials and download `credentials.json` to your project directory.
 
-### Enabling APIs
+4. **Obtain `token.json`**
 
-1. **Go to the [Google Cloud Console](https://console.cloud.google.com/apis/dashboard).**
-2. **Create a new project** or select an existing one.
-3. **Enable the following APIs** for your project:
-   - Gmail API
-   - Google Drive API
-   - Google Docs API
-   - Google Sheets API
-   - Google Slides API
-   - Google Calendar API
+   - Run a Google API quickstart script (e.g., Gmail) to generate `token.json`.
+   - **Important:** `token.json` is required. Ensure it is in your project directory.
 
-### Creating OAuth 2.0 Client Credentials
+---
 
-1. **Navigate to the [APIs & Services > Credentials](https://console.cloud.google.com/apis/credentials) page.**
-2. **Click on "Create Credentials" and select "OAuth client ID".**
-3. **Configure the consent screen** if prompted.
-4. **Choose "Desktop app" as the application type.**
-5. **Download the `credentials.json` file** and place it in the root directory of the project.
+## Running the Script
 
-### Obtaining `token.json`
-
-1. **Run the following script** to generate the `token.json` file:
-
-   ```bash
-   python get_token.py
-   ```
-
-   Create a new file named `get_token.py` with the following content:
-
-   ```python
-   from google_auth_oauthlib.flow import InstalledAppFlow
-   import os
-   import pickle
-
-   SCOPES = [
-       "https://www.googleapis.com/auth/calendar.readonly",
-       "https://www.googleapis.com/auth/drive.readonly",
-       "https://www.googleapis.com/auth/documents.readonly",
-       "https://www.googleapis.com/auth/spreadsheets.readonly",
-       "https://www.googleapis.com/auth/presentations.readonly",
-       "https://www.googleapis.com/auth/gmail.send",
-       "https://www.googleapis.com/auth/gmail.readonly",
-       "https://www.googleapis.com/auth/gmail.modify",
-   ]
-
-   def main():
-       flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
-       creds = flow.run_local_server(port=0)
-       with open('token.json', 'w') as token:
-           token.write(creds.to_json())
-
-   if __name__ == '__main__':
-       main()
-   ```
-
-2. **Follow the authentication steps** in your browser to authorize the application.
-
-3. **A `token.json` file will be generated** in your project directory.
-
-**Note**: Keep your `credentials.json` and `token.json` files secure and do not commit them to version control.
-
-
-## Running the Application
-
-Ensure that your virtual environment is activated and run:
+Run the script using:
 
 ```bash
 python main.py
 ```
 
-**Note**: The application will run indefinitely, checking for new meeting invitations every 5 minutes.
-
-## Usage
-
-1. **Email Processing**
-
-   - The application scans your Gmail inbox for new emails containing `.ics` attachments (calendar invites).
-   - It filters out emails already labeled as "Processed".
-
-2. **Event Extraction**
-
-   - Parses `.ics` files to extract event details.
-   - Uses an LLMs to determine if the email is a meeting invitation.
-
-3. **Attachment Handling**
-
-   - Downloads and processes attachments from Google Drive.
-   - Supports Google Docs, Sheets, Slides, PDFs, and text files.
-
-4. **Content Summarization**
-
-   - Summarizes attachment content using LLMs.
-
-5. **Task Generation with Feedback Loop**
-
-   - Generates a list of preparatory tasks.
-   - Incorporates up to three iterations of human feedback to refine the tasks.
-
-6. **Email Notification**
-
-   - Sends the finalized task list back to you via email.
+The script will check for new emails every 5 minutes. Press `Ctrl+C` to stop.
 
 ---
 
-**Disclaimer**: This application uses sensitive scopes that provide access to your Gmail and Google Drive data. Ensure you understand the implications and secure your credentials appropriately.
+## How It Works
+
+1. **Email Scanning**
+
+   - Searches your Gmail inbox for new meeting invitations with `.ics` attachments.
+
+2. **Event Information Extraction**
+
+   - Parses the `.ics` file to extract event details.
+
+3. **Attachment Summarization**
+
+   - Downloads and summarizes attachments using the LLM.
+
+4. **Task Generation**
+
+   - Generates a list of preparatory tasks for the meeting.
+
+5. **Email Notification**
+
+   - Sends the task list to your email.
+
+6. **Email Labeling**
+
+   - Labels processed emails to prevent duplication.
+
+---
+
+## Interactive Feedback Loop
+
+### Key Feature: Your Feedback Improves Future Tasks
+
+After generating the tasks, the script engages you in an interactive loop to refine and enhance task generation:
+
+1. **Task Presentation**
+
+   - The generated tasks are displayed in the console for your review.
+
+2. **Feedback Collection**
+
+   - You're prompted to indicate if you're satisfied with the tasks:
+     - **Yes:** Accept the tasks as they are.
+     - **No:** Provide feedback for improvement.
+
+3. **Task Regeneration**
+
+   - Your input is stored and used to improve the prompt.
+   - The script regenerates the tasks based on your feedback.
+   - This loop can occur up to 3 times per task list.
+
+4. **Prompt Improvement**
+
+   - Once enough feedback is collected, the script summarizes it using the LLM.
+   - The summarized feedback enhances future task generation, making it more aligned with your preferences.
+
+---
+## Configuration
+
+### YAML Configuration File
+
+The script uses a `config.yaml` file to manage constants and settings, making it easy to customize the behavior without modifying the code.
+
+### Configuration Variables
+
+The script uses a `config.yaml` file for configuration. Below are explanations of each variable:
+
+- **model_name**: *(str)* The endpoint or name of the Large Language Model (LLM) to be used.
+- **task_generation_temperature**: *(float)* Control the LLM that generates tasks. A value between 0.0 (deterministic) and 1.0 (more random).
+- **scopes**: *(list)* A list of Google API scopes required for the application.
+- **token_file**: *(str)* The filename where the OAuth 2.0 token is stored.
+- **modifications_file**: *(str)* The filename for storing user feedback modifications.
+- **processed_label_name**: *(str)* The name of the Gmail label used to mark processed emails.
+- **gmail_query**: *(str)* The query string used to search for relevant emails in Gmail.
+- **max_email_results**: *(int)* The maximum number of emails to process at once.
+- **max_iterations**: *(int)* The maximum number of feedback loops for task generation.
+- **modification_summary_threshold**: *(int)* The number of feedback entries required before summarizing modifications.
+- **email_polling_retry_interval**: *(int)* The interval (in seconds) between email checks.
+
+---

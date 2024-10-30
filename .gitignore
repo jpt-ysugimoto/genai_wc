@@ -3,3 +3,9 @@
 ics_analysis.ipynb
 .ipynb_checkpoints
 token.json
+main_old.py
+modifications.pickle
+Pipfile
+Pipfile.lock
+__pycache__
+exp.py

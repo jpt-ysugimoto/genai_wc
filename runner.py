@@ -10,8 +10,17 @@
 
 # COMMAND ----------
 
-from main2 import main
+# MAGIC %restart_python
+
+# COMMAND ----------
+
+from main import main
 main()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC
 
 # COMMAND ----------
 
