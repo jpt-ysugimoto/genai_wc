@@ -23,7 +23,7 @@ max_email_results: 10 # Maximum number of emails to process at a time.
 
 # task generation
 max_iterations: 3 # Max feedback loops for task generation.
-modification_summary_threshold: 5 # Number of feedback entries before summarizing.
+modification_summary_threshold: 2 # Number of feedback entries before summarizing.
 
 # email polling behavior
 email_polling_retry_interval: 300 # Time in seconds between email checks.

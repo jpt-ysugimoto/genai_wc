@@ -39,7 +39,7 @@ def main():
                 logger.error(f"An unexpected error occurred: {e}")
                 break
 
-            logger.info("Waiting for 5 minutes before checking for new emails")
+            logger.info(f"Waiting for {config.email_polling_retry_interval // 60} minutes before checking for new emails")
             time.sleep(config.email_polling_retry_interval)
 
     except KeyboardInterrupt:
