@@ -1,6 +1,6 @@
 import logging
 from typing import Any
-from langchain_community.chat_models import ChatDatabricks
+from langchain_databricks import ChatDatabricks
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from models.models import IsMeetingInvite, TaskList

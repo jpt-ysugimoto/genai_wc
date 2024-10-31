@@ -1,0 +1,24 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+icalendar = "==6.0.1"
+python-dotenv = "==1.0.1"
+google-api-python-client = "==2.149.0"
+google-auth-oauthlib = "==1.2.1"
+google-auth-httplib2 = "==0.2.0"
+pypdf = "==5.0.1"
+pydantic = "==2.9.2"
+sortedcontainers = "==2.4.0"
+pyyaml = "==6.0.2"
+langchain = "==0.3.6"
+langchain-core = "==0.3.14"
+langchain-community = "==0.3.4"
+langchain-databricks = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.10"
