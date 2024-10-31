@@ -18,6 +18,7 @@ The Meeting Preparation Assistant is a Python script that automates your meeting
   - [Table of Contents](#table-of-contents)
   - [Prerequisites](#prerequisites)
   - [Setup Instructions](#setup-instructions)
+  - [Follow the link in the terminal to complete the authorization. Afterward, `token.json` will appear in your project directory.](#follow-the-link-in-the-terminal-to-complete-the-authorization-afterward-tokenjson-will-appear-in-your-project-directory)
   - [Running the Script](#running-the-script)
   - [How It Works](#how-it-works)
   - [Interactive Feedback Loop](#interactive-feedback-loop)
@@ -25,6 +26,7 @@ The Meeting Preparation Assistant is a Python script that automates your meeting
   - [Configuration](#configuration)
     - [YAML Configuration File](#yaml-configuration-file)
     - [Configuration Variables](#configuration-variables)
+  - [Folder Struction](#folder-struction)
 
 ---
 
@@ -52,16 +54,34 @@ The Meeting Preparation Assistant is a Python script that automates your meeting
    pip install -r requirements.txt
    ```
 
-3. **Set Up Google API Credentials**
+3. **Obtain `credentials.json`** 
+   To generate `credentials.json`, please follow the instructions in the [Google Cloud guide on creating and managing service account keys](https://cloud.google.com/iam/docs/keys-create-delete).
 
-   - Enable the necessary Google APIs in the [Google Cloud Console](https://console.cloud.google.com/).
-   - Create OAuth credentials and download `credentials.json` to your project directory.
+4. **Generate `token.json`**
+   To create the `token.json` file, run the following script to perform an initial authorization for Gmail:
 
-4. **Obtain `token.json`**
+   ```python
+   from google_auth_oauthlib.flow import InstalledAppFlow
+   from googleapiclient.discovery import build
 
-   - Run a Google API quickstart script (e.g., Gmail) to generate `token.json`.
-   - **Important:** `token.json` is required. Ensure it is in your project directory.
+   SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
+   def generate_token():
+      flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+      creds = flow.run_local_server(port=0)
+      with open('token.json', 'w') as token:
+         token.write(creds.to_json())
+
+   generate_token()
+   ```
+
+   Run this script from the command line:
+
+   ```bash
+   python generate_token.py
+   ```
+
+   Follow the link in the terminal to complete the authorization. Afterward, `token.json` will appear in your project directory.
 ---
 
 ## Running the Script
@@ -155,3 +175,6 @@ The script uses a `config.yaml` file for configuration. Below are explanations o
 - **email_polling_retry_interval**: *(int)* The interval (in seconds) between email checks.
 
 ---
+
+## Folder Struction
+
