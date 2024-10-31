@@ -16,7 +16,7 @@ pyyaml = "==6.0.2"
 langchain = "==0.3.6"
 langchain-core = "==0.3.14"
 langchain-community = "==0.3.4"
-langchain-databricks = "==0.1.1"
+langchain-databricks = "*"
 
 [dev-packages]
 

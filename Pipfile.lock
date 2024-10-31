@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "6bcd1f3e74dd2c326b8540cf54efd1e775d8849221fe41e7c1b0b3022b83995d"
+            "sha256": "d19ced055e79f2c48af842bd76cd1f77a46663bbb260b513507cd7fb0219608b"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -1205,19 +1205,19 @@
         },
         "mlflow": {
             "hashes": [
-                "sha256:04cbec7fe79a4509d8c073ef64302b24e73cb447f5a14ad51d915bfbaa05c73b",
-                "sha256:e614d0732cf95712891bfdfd92461dcf6a85d9e1899591be8399eb107eec6919"
+                "sha256:3ecee5fa0eea9134154a99aec3006fe8fdbfc61d990a74ce99fa69cd3b54e933",
+                "sha256:5cd1b105d31db49d2c23d80d6e07ddde437793ffc1985b117fb013bf8ccb1ae8"
             ],
             "markers": "python_version < '3.12'",
-            "version": "==2.17.1"
+            "version": "==2.17.2"
         },
         "mlflow-skinny": {
             "hashes": [
-                "sha256:656b7ccf37e7a5a00124487ad9ff1be781a041b6830ac7ae08cd594fd40b7f69",
-                "sha256:75500acab95c81aac469ed12da4a102e229b8e16757b61393080a44d45018020"
+                "sha256:944144f2c94afff293c3f000dc605c7f08f5f8287bc6108d52a6f6e13dc4b64b",
+                "sha256:d45d6ba7a05e4755110eca71afcad12d6ede51114b2be0fbb60a3f28d9159ab5"
             ],
             "markers": "python_version >= '3.8'",
-            "version": "==2.17.1"
+            "version": "==2.17.2"
         },
         "multidict": {
             "hashes": [
