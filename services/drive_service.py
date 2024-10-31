@@ -87,7 +87,11 @@ class DriveService:
                 logger.warning(
                     f"Unsupported MIME type '{mime_type}' for attachment '{title}'"
                 )
-
+            if len(content) > 10**4:
+                logger.info(
+                    f"Content length for attachment '{title}' exceeds limit, truncating to 10,000 characters"
+                )
+                content = content[: 10**4]
             summarized_content = llm_service.summarize_with_llm(content)
             attachment_contents.append(
                 {
