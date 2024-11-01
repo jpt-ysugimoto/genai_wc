@@ -23,7 +23,7 @@ class EventInfo(BaseModel):
         description="The duration of the event as a timedelta object."
     )
     num_ppl: int = Field(description="The number of participants in the event.")
-    att_contents: list = Field(
+    att_contents: list[dict[str, str]] = Field(
         default_factory=list,
         description="A list of dictionaries with attachment titles and summarized contents.",
     )
